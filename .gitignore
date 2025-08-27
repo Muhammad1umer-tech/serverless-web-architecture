@@ -1,0 +1,40 @@
+frontend/node_modules
+frontend/.env
+frontend/.next
+frontend/dist
+frontend/build
+frontend/.cache
+frontend/.DS_Store
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.eslintcache
+frontend/coverage
+
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform state files (sensitive data!)
+infra/*.tfstate
+infra/*.tfstate.*
+
+# Crash log files
+infra/crash.log
+infra/crash.*.log
+
+# Ignore variable override files (personal / local only)
+infra/*.tfvars
+infra/*.tfvars.json
+infra/override.tf
+infra/override.tf.json
+infra/*_override.tf
+infra/*_override.tf.json
+
+# Sensitive environment variable files
+infra/.terraformrc
+infra/terraform.rc
+
+# Lock file (optional: keep if you want to pin provider versions in team repos)
+infra/.terraform.lock.hcl
+
+

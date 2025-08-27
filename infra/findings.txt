@@ -1,0 +1,169 @@
+✅ Cognito is the actual authentication service — it manages users, issues JWTs, and handles sign-up/sign-in.
+
+✅ Amplify is a developer toolkit (CLI, SDK, Hosting) that can help interact with Cognito but is optional for authentication.
+
+👉 You’re using Cognito for authentication (frontend → Cognito → JWTs), which is correct.
+
+👉 Amplify is being used for hosting your frontend — that’s fine; you don’t need the Amplify SDK in your frontend unless you want built-in auth helpers or UI components.
+
+💡 Amplify SDK just wraps Cognito APIs to make frontend integration easier, but you can use Cognito directly (e.g., with NextAuth or custom auth hooks) without it.
+
+
+
+you must put your Lambda inside a VPC. Without a VPC, Lambda runs in a default, public AWS environment and cannot reach private endpoints.
+
+
+Not necessarily! Here's why:
+
+DynamoDB and S3 support VPC Endpoints (Gateway Endpoints):
+AWS provides VPC Gateway Endpoints for S3 and DynamoDB. These are highly available, scalable, and free AWS-managed services that let your Lambda access S3 and DynamoDB directly from inside your VPC, without needing a NAT Gateway or internet access.
+
+So, if you configure VPC Gateway Endpoints for S3 and DynamoDB in your VPC, your Lambda functions running inside private subnets can access these services privately and securely without routing traffic through a NAT Gateway.
+
+
+
+You need a NAT Gateway if your Lambda inside a private subnet must access any public internet endpoints or AWS services that do not have VPC endpoints available.   
+
+to run container image serverless(ecs/fargate than lambda)
+run lambda function on the basis of cloudWatch events.
+can also create serverless cronJob (cloudWatch (eventbridge rule) + lambda)
+pay per call, and 	pay per duration
+
+
+very very cheap to run a code on lambda 
+like if your code is taking 1GB. Then, it will run for 600,000sec for 1.00$
+
+concurrency applies on all the function on your account, like if one function got 1000 concurrency, other function will get throttle error.
+
+async mode
+in throttle mode, throttle function will go to queue
+
+cold start: inittialization (like pip install -r req).
+to solve this, we can use provosioned concurrency
+
+
+application auto scaling group
+reserved and provionsed concurrency
+
+	
+
+api gateaway
+serverless api that act as proxy
+authentication, usage plan, dev stages.
+
+if need serverless REST API, use api gateaway
+
+
+
+
+
+
+serverless: where we dont have to manage or provisioned servers, some other person usually do.
+Function as a service (we deploy code as function).
+
+serverless: lambda, s3, dynomoDB, sns, sqs, cognito, api gateaway, step function, fargate.
+
+
+why we should we lambda function.
+function ---> no servers to manage.
+run on demand.
+scaling is automated.
+1 mil request, and 400,000 secs of execution if memory usage is 1GB.
+we can trigger lambda if something happens in s3, or via event bridge, or via event notification.
+
+
+limits
+memory 128MB TO 10GB
+maximum execution 15min
+env variable 4kb
+disk capacity 512MB to 10GB
+concurrent users 1000
+
+
+for deployemnet
+size of function zip file should be 50MB
+unzip should be 250MB
+
+can we reserved concurrency.
+throttle : if concurrency has been reached, throttle error will be received.
+sync:  give 429 error
+async: add in queue and try to run with 1,5min gap upto 6 hours.
+
+
+snapstart: if enable, it will iniliaze the code only once 
+init->invoke->shutdown
+
+
+function/logic run on cloudFront for web security, SEO, authentication, content optimization 
+cloudfront function
+lambdaEdge
+
+This initialization takes time — usually hundreds of milliseconds to seconds — and this delay is called a cold start.
+Warm start is when Lambda reuses an existing environment — so it's much faster (almost instant.
+provisioned concurrency: Lambda keeps X instances ready at all times.
+
+
+lmabda cannot access services within vpc, so for that create lambda within vpc
+
+in order to lambda to acces db, use vpc, then rds proxy.
+and rds proxy is never publically available. supported for rds postgres, and aurora mysql.
+rds event notification (does not tell us or trigger about the data).
+
+API Gateaway:
+provides all the tools, functionality that we have to do manually by writing a code on server
+like rest api implementation.
+authentication, authorization.
+
+
+so we can use this tools with lambda
+api gateaway + lambda is cheap
+as compared to ec2
+
+
+still people uses gateaway with ec2 because
+Pervent DDos attack.
+API Gateway can throttle requests, ensuring that no single user or client can overwhelm your EC2 instance with traffic (great for preventing DDoS or abusive requests).
+gateaway for private ec2 instance.
+API Gateway integrates seamlessly with AWS CloudWatch, giving you insights into your API usage (request/response data, errors, latency).
+mainly auth, checkings happens on gateaway, server has business logic only.
+has alot that ALB does not have.
+
+
+step function: It’s like creating a flowchart of your infrastructure. t actually runs and manages the execution of those workflows.
+
+
+Cognito: gives identity to client
+
+
+
+"This is a custom module that I wrote in my own folders. Why do I need to run terraform init for that?"
+
+The short answer:
+Even custom/local modules must be initialized by terraform init, because Terraform treats all modules (local or remote) as dependencies that need to be registered in the .terraform directory.
+
+in api
+i'll make one api to add an data. (only admin).
+one to embed data for genAI. (only admin)
+one to show all the data according to user's id. (everyone)
+one to chat with bedrock. (everyone)
+
+
+
+Add Request Validation at API Gateway
+Use API Gateway Models to validate:
+Required fields
+Field types (string, number, etc.)
+Prevent malformed requests from even reaching Lambda
+Benefit: Shift-left validation = cheaper + more secure
+
+
+
+
+4️⃣ Enable Throttling and Quotas
+Protect the API from abuse:
+Throttle per method (/query can be abused easily)
+Add usage plans per API key (or per Cognito group)
+Benefit: Shows you understand rate limiting and quota controls
+
+
+

@@ -1,0 +1,26 @@
+This route table code only controls outbound traffic routing — it tells AWS where to send traffic going out from your VPC (like to the internet).
+
+Inbound traffic (coming into your VPC or instances) isn’t controlled by the route table. Instead, inbound access is managed by:
+
+Security Groups: They act like virtual firewalls for your instances, controlling what inbound (and outbound) network traffic is allowed.
+
+Network ACLs (Access Control Lists): They control traffic at the subnet level, both inbound and outbound.
+
+Also, for inbound traffic from the internet to reach your instances, the instances need:
+
+A public IP or be behind a load balancer.
+
+Appropriate security group rules allowing inbound connections on certain ports (e.g., port 80 for HTTP).
+
+
+#If a device inside this network wants to connect to the internet,
+  #send its traffic through this internet gateway.
+  #This route table code only controls outbound traffic routing — 
+  #it tells AWS where to send traffic going out from your VPC (like to the internet)
+
+
+A VPC endpoint allows your AWS resources in a private VPC (e.g., Lambda, EC2) to connect to AWS
+services without going through the internet.
+
+Gateway Endpoint	S3 and DynamoDB only
+Interface Endpoint	Most other AWS services (SSM, Secrets Manager, etc.)

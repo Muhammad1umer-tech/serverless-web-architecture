@@ -1,0 +1,8 @@
+A Security Group (SG) acts like a virtual firewall attached to network interfaces (like your Lambda’s ENI).
+
+It controls:
+
+Inbound traffic (what can come into your Lambda — usually nothing)
+
+Outbound traffic (what your Lambda is allowed to send out — e.g., to S3/DynamoDB)
+

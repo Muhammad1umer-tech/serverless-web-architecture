@@ -1,0 +1,59 @@
+By providing the source_code_hash, Terraform knows to trigger a new deployment when the code changes — 
+even if the rest of your config doesn’t.
+
+Always use both together:
+
+h
+Copy
+Edit
+filename         = data.archive_file.lambda_zip.output_path
+source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+This ensures your Lambda function always gets the latest version of your code, and Terraform can track
+changes properly.
+
+data "archive_file" "lambda" {
+  type        = "zip"
+  source_file = "lambda.js"
+  output_path = "lambda_function_payload.zip"
+}
+
+his block is telling Terraform to create a ZIP file from a single file (lambda.js). This ZIP is then 
+used to deploy code to AWS Lambda, which requires zipped packages.
+
+
+
+
+Error: creating Lambda Function (hello-python-lambda): operation error Lambda: CreateFunction, https response error StatusCode: 400, RequestID: a536b09e-f403-45db-8acc-9d4d4cb584fe, InvalidParameterValueException: The provided execution role does not have permissions to call CreateNetworkInterface on EC2
+│ 
+│   with module.serverless_lambda.aws_lambda_function.test_lambda,
+│   on modules/Lambda/main.tf line 7, in resource "aws_lambda_function" "test_lambda":
+│    7: resource "aws_lambda_function" "test_lambda" {
+│ 
+╵
+
+
+On EC2, ENIs are permanent and essential — they are the actual network interface of the instance.
+On Lambda (in VPC), ENIs are temporary, created by AWS so your function can talk to private resources.
+
+
+
+An ENI is attached to a subnet — and then associated with a resource like EC2 or Lambda.
+
+
+🧱 1. ENI ↔ Subnet Binding
+When you create an ENI, you must specify the subnet.
+That subnet determines:
+The private IP range the ENI can use
+The route table and NACLs that apply to the ENI
+Which Availability Zone it’s in
+
+So:
+📌 The ENI belongs to the subnet, not directly to the EC2 or Lambda.
+
+
+An ENI is a virtual network adapter in AWS.
+It is always created inside a subnet (which gives it an IP and routing rules).
+It is then attached to a resource, like an EC2 instance or a Lambda function (if Lambda runs in a VPC).
+This lets the resource communicate on the network, using the subnet’s IP range and security groups.
+
+Security groups are attached to the ENI — not directly to the EC2 instance.

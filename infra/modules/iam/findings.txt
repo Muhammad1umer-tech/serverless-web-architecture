@@ -1,0 +1,40 @@
+aws_iam_role_policy vs aws_iam_role_policy_attachment
+
+aws_iam_role_policy_attachment
+To reuse a policy across roles:
+Create it using aws_iam_policy_document
+Wrap it in a aws_iam_policy (managed policy)
+Attach it with aws_iam_role_policy_attachment
+
+Code:
+aws_iam_policy_document → aws_iam_policy → aws_iam_role_policy_attachment
+
+
+aws_iam_role_policy
+Attaches an inline policy directly to a specific IAM role.
+The policy exists only inside that role — it’s not reusable.
+Useful for tight, one-off policies scoped to that specific role.
+You define the policy JSON inline or with aws_iam_policy_document.
+
+Code: 
+resource "aws_iam_role_policy" "example" {
+  name   = "inline-policy"
+  role   = aws_iam_role.my_role.id
+  policy = data.aws_iam_policy_document.my_policy.json
+}
+
+| Resource                         | Use Case                                    | Reusable? |
+| -------------------------------- | ------------------------------------------- | --------- |
+| `aws_iam_policy_document`        | Builds policy JSON from HCL                 | ✅         |
+| `aws_iam_policy`                 | Creates a reusable, managed policy          | ✅         |
+| `aws_iam_role_policy`            | Inline policy attached directly to one role | ❌         |
+| `aws_iam_role_policy_attachment` | Attaches managed policies (AWS or custom)   | ✅         |
+
+
+resource "aws_iam_role" "serverless_iam_for_lambda" {
+  name               = "lambda_hello_world_role"
+  assume_role_policy = data.aws_iam_policy_document.serverless_assumerole_policy_doc_lambda.json
+}
+
+assume_role_policy in role is important to give assume role here 
+and add other policy in attachemnet.
