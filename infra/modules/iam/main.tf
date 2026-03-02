@@ -1,9 +1,7 @@
 ######################
-# IAM Assume policy
+# Trust policy — allows Lambda service to assume this role
 ######################
-
-
-data "aws_iam_policy_document" "assume_role_for_lambda" {
+data "aws_iam_policy_document" "lambda_assume_role_policy" {
   statement {
     effect = "Allow"
     principals {
@@ -15,31 +13,24 @@ data "aws_iam_policy_document" "assume_role_for_lambda" {
 }
 
 ######################
-# IAM Policy Document
+# Permission policy — defines what Lambda can access
 ######################
+data "aws_iam_policy_document" "lambda_execution_policy_document" {
 
-
-data "aws_iam_policy_document" "serverless_additional_policy_doc_lambda" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup",
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
-    ]
-    resources = ["arn:aws:logs:*:*:*"]
-  }
-
+  # Required for Lambda inside VPC (ENI management)
   statement {
     effect = "Allow"
     actions = [
       "ec2:CreateNetworkInterface",
       "ec2:DescribeNetworkInterfaces",
-      "ec2:DeleteNetworkInterface"
+      "ec2:DeleteNetworkInterface",
+      "ec2:AssignPrivateIpAddresses",
+      "ec2:UnassignPrivateIpAddresses"
     ]
     resources = ["*"]
   }
 
+  # S3 access
   statement {
     effect = "Allow"
     actions = [
@@ -49,55 +40,64 @@ data "aws_iam_policy_document" "serverless_additional_policy_doc_lambda" {
     resources = ["arn:aws:s3:::${var.bucket_name}/*"]
   }
 
-  # statement {
-  #   effect = "Allow"
-  #   actions = [
-  #     "dynamodb:Scan",
-  #     "dynamodb:Query",
-  #     "dynamodb:GetItem",
-  #     "dynamodb:PutItem"
-  #   ]
-  #   resources = [
-  #     var.aws_dynamodb_table
-  #   ]
-  # }
+  # DynamoDB access
+  statement {
+    effect = "Allow"
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:GetItem",
+      "dynamodb:Scan",
+      "dynamodb:Query"
+    ]
+    resources = [var.dynamodb_table_arn]
+  }
 
-  # statement {
-  #   effect = "Allow"
-  #   actions = [
-  #     "sns:Publish",
-  #   ]
-  #   resources = [
-  #     var.aws_sns_arn
-  #   ]
-  # }
+  # SNS publish permission
+  statement {
+    effect = "Allow"
+    actions = ["sns:Publish"]
+    resources = [var.sns_topic_arn]
+  }
+  
+  # Secrets Manager permission
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = [var.application_secret_arn]
+  }
 }
 
 ######################
-# IAM Policy
+# Register upper custom policy in AWS
 ######################
-
-resource "aws_iam_policy" "serverless_policy_lambda" {
-  name        = "test_policy"
-  description = "My test policy"
-  policy = data.aws_iam_policy_document.serverless_additional_policy_doc_lambda.json
+resource "aws_iam_policy" "lambda_execution_policy" {
+  name        = "${var.project_name}-${var.environment}-lambda-execution-policy"
+  description = "Execution policy for Lambda (VPC + S3 + DynamoDB + SNS)"
+  policy      = data.aws_iam_policy_document.lambda_execution_policy_document.json
 }
 
 ######################
-# IAM Role
+# Create IAM Role for Lambda (Add assumerole in role)
 ######################
-
-resource "aws_iam_role" "serverless_iam_for_lambda" {
-  name               = "lambda_hello_world_role"
-  assume_role_policy = data.aws_iam_policy_document.assume_role_for_lambda.json
+resource "aws_iam_role" "lambda_execution_role" {
+  name               = "${var.project_name}-${var.environment}-lambda-execution-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
 }
 
 ######################
-# POlicy and Role attachement
+# Attach AWS managed logging policy with policy
 ######################
+resource "aws_iam_role_policy_attachment" "lambda_basic_logging_attachment" {
+  role       = aws_iam_role.lambda_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
 
-
-resource "aws_iam_role_policy_attachment" "lambda_assume_role" {
-  role       = aws_iam_role.serverless_iam_for_lambda.name
-  policy_arn = aws_iam_policy.serverless_policy_lambda.arn
+######################
+# Attach custom execution policy along with basic logging policy
+######################
+resource "aws_iam_role_policy_attachment" "lambda_execution_policy_attachment" {
+  role       = aws_iam_role.lambda_execution_role.name
+  policy_arn = aws_iam_policy.lambda_execution_policy.arn
 }

@@ -1,23 +1,27 @@
-variable "cidr_block" {
+variable "project_name" {
+  type = string
+}
+
+variable "environment" {
+  type = string
+}
+
+variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
 }
 
-variable "public_subnet" {
-  description = "Public subnet IP range"
+variable "public_subnet_cidr" {
+  description = "CIDR block for public subnet"
   type        = string
 }
 
-variable "private_subnet" {
-  description = "Private subnet IP range"
+variable "private_subnet_cidr" {
+  description = "CIDR block for private subnet"
   type        = string
 }
 
-variable "serverless_security_group_id" {
-    type = string
+variable "sns_endpoint_security_group_id" {
+  description = "Security group for SNS interface endpoint"
+  type        = string
 }
-
-variable "serverless_sns_security_group_id" {
-    type = string
-}
-

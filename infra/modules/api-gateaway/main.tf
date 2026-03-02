@@ -1,71 +1,97 @@
-# -------------------------------
-# 2. API Gateway (HTTP API)
-# -------------------------------
-resource "aws_apigatewayv2_api" "http_api" {
-  name          = "example-http-api"
+############################
+# HTTP API
+############################
+
+resource "aws_apigatewayv2_api" "application_http_api" {
+  name          = "${var.project_name}-${var.environment}-http-api"
   protocol_type = "HTTP"
 }
 
+############################
+# Cognito JWT Authorizer
+############################
 
-resource "aws_apigatewayv2_authorizer" "cognito_auth" {
-  api_id     = aws_apigatewayv2_api.http_api.id
-  name       = "cognito-authorizer"
+resource "aws_apigatewayv2_authorizer" "cognito_jwt_authorizer" {
+  api_id          = aws_apigatewayv2_api.application_http_api.id
+  name            = "${var.project_name}-${var.environment}-jwt-authorizer"
   authorizer_type = "JWT"
 
   identity_sources = ["$request.header.Authorization"]
 
   jwt_configuration {
-    audience = [var.serverless_cognito_client_id]
-    issuer   = "https://${var.serverless_cognito_pool_endpoint}"
+    audience = [var.cognito_client_id]
+    issuer   = "https://${var.cognito_user_pool_endpoint}"
   }
 }
 
-# -------------------------------
-# 4. Lambda Integration
-# -------------------------------
-resource "aws_apigatewayv2_integration" "lambda_integration" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  integration_type   = "AWS_PROXY"
-  integration_uri    = var.lambda_function_invoke_arn
-  integration_method = "POST"
+############################
+# Lambda Integrations
+############################
+
+resource "aws_apigatewayv2_integration" "add_lambda_integration" {
+  api_id                 = aws_apigatewayv2_api.application_http_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = var.add_lambda_invoke_arn
+  integration_method     = "POST"
   payload_format_version = "2.0"
 }
 
-# -------------------------------
-# 5. Route (with Cognito auth)
-# -------------------------------
-resource "aws_apigatewayv2_route" "secure_route_query" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "ANY /query"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-  authorization_type = "JWT"
-  authorizer_id = aws_apigatewayv2_authorizer.cognito_auth.id
+resource "aws_apigatewayv2_integration" "query_lambda_integration" {
+  api_id                 = aws_apigatewayv2_api.application_http_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = var.query_lambda_invoke_arn
+  integration_method     = "POST"
+  payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "secure_route_add" {
-  api_id    = aws_apigatewayv2_api.http_api.id
+############################
+# Routes (Protected)
+############################
+
+resource "aws_apigatewayv2_route" "add_route" {
+  api_id    = aws_apigatewayv2_api.application_http_api.id
   route_key = "POST /add"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.add_lambda_integration.id}"
+
   authorization_type = "JWT"
-  authorizer_id = aws_apigatewayv2_authorizer.cognito_auth.id
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt_authorizer.id
 }
 
-# -------------------------------
-# 6. Deployment + Stage
-# -------------------------------
+resource "aws_apigatewayv2_route" "query_route" {
+  api_id    = aws_apigatewayv2_api.application_http_api.id
+  route_key = "POST /query"
+  target    = "integrations/${aws_apigatewayv2_integration.query_lambda_integration.id}"
+
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt_authorizer.id
+}
+
+############################
+# Stage
+############################
+
 resource "aws_apigatewayv2_stage" "default_stage" {
-  api_id      = aws_apigatewayv2_api.http_api.id
+  api_id      = aws_apigatewayv2_api.application_http_api.id
   name        = "$default"
   auto_deploy = true
 }
 
-# -------------------------------
-# 7. Lambda Permission for API Gateway
-# -------------------------------
-resource "aws_lambda_permission" "api_gw_invoke" {
-  statement_id  = "AllowAPIGatewayInvoke"
+############################
+# Lambda Permissions
+############################
+
+resource "aws_lambda_permission" "allow_add_lambda" {
+  statement_id  = "AllowAPIGatewayInvokeAdd"
   action        = "lambda:InvokeFunction"
-  function_name = var.lambda_function_name
+  function_name = var.add_lambda_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${aws_apigatewayv2_api.application_http_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "allow_query_lambda" {
+  statement_id  = "AllowAPIGatewayInvokeQuery"
+  action        = "lambda:InvokeFunction"
+  function_name = var.query_lambda_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.application_http_api.execution_arn}/*/*"
 }

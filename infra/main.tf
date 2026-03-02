@@ -1,64 +1,100 @@
-# module "serverless_s3_creation" {
-#   source        = "./modules/s3"
-#   bucket_name   = "my-unique-bucket-name-umer-12345-29"
+module "application_storage" {
+  source       = "./modules/s3"
+  project_name = var.project_name
+  environment  = var.environment
+  bucket_name  = var.bucket_name
+}
 
-#   tags = {
-#     Name        = "MyBucket"
-#     Environment = "Dev"
-#   }
-# }
+module "application_network" {
+  source = "./modules/networking"
 
-module "serverless_custom_vpc" {
-  source        = "./modules/networking"
-  cidr_block    = "10.0.0.0/16"
-  public_subnet = "10.0.1.0/24"
-  private_subnet = "10.0.2.0/24"
-  serverless_security_group_id = module.serverless_sg.serverless_security_group_id
-  serverless_sns_security_group_id = module.serverless_sg.serverless_security__sns_group_id
+  project_name = var.project_name
+  environment  = var.environment
 
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidr  = var.public_subnet_cidr
+  private_subnet_cidr = var.private_subnet_cidr
+
+  sns_endpoint_security_group_id = module.application_security_groups.sns_endpoint_security_group_id
 }
 
 
-module "serverless_iam" {
-  source        = "./modules/iam"
-  bucket_name   = "my-unique-bucket-name-umer-12345-29"
-  # aws_dynamodb_table = module.serverless_dynamodb.serverless_dynamodb_table_arn
-  # aws_sns_arn = module.serverless_sns.serverless_aws_sns_arn
+module "application_policies" {
+  source             = "./modules/iam"
+  project_name       = var.project_name
+  environment        = var.environment
 
+  bucket_name        = var.bucket_name
+  dynamodb_table_arn = module.application_database.dynamodb_table_arn
+  sns_topic_arn      = module.application_sns.sns_topic_arn
+  application_secret_arn = module.application_secrets_manager.application_secret_arn
 }
 
-module "serverless_sg" {
-  source        = "./modules/securityGroup"
-  custom_vpc_id = module.serverless_custom_vpc.custom_vpc_id
+module "application_lambda" {
+  source                       = "./modules/Lambda"
+  lambda_assume_role           = module.application_policies.iam_role_arn
+  private_subnet_id            = module.application_network.private_subnet_id
+  security_group_id             = module.application_security_groups.lambda_security_group_id
+
+  # required inputs for your Lambda module
+  project_name = var.project_name
+  environment  = var.environment
+  table_name   = var.table_name
+  bucket_name  = var.bucket_name
+  file_key     = var.file_key
+
+  # sns
+  sns_topic_arn = module.application_sns.sns_topic_arn
+  application_secret_arn = module.application_secrets_manager.application_secret_arn
 }
 
-module "serverless_lambda" {
-  source        = "./modules/Lambda"
-  lambda_assume_role = module.serverless_iam.iam_role_arn
-  serverless_private_subnet_id = module.serverless_custom_vpc.serverless_private_subnet_id
 
-  serverless_security_group_id = module.serverless_sg.serverless_security_group_id
+module "application_sns" {
+  source       = "./modules/sns"
+  project_name = var.project_name
+  admin_email  = var.admin_email
+}
+
+module "application_database" {
+  source       = "./modules/dynamodb"
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+module "application_cognito" {
+  source        = "./modules/cognito"
+  project_name  = var.project_name
+  environment   = var.environment
 }
 
 
-# module "serverless_dynamodb" {
-#   source        = "./modules/dynamoDB"
-# }
+module "application_api" {
+  source = "./modules/api-gateaway"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  add_lambda_name       = module.application_lambda.lambda_names["addLambda"]
+  query_lambda_name     = module.application_lambda.lambda_names["queryLambda"]
+
+  add_lambda_invoke_arn   = module.application_lambda.lambda_invoke_arns["addLambda"]
+  query_lambda_invoke_arn = module.application_lambda.lambda_invoke_arns["queryLambda"]
+
+  cognito_client_id           = module.application_cognito.cognito_user_pool_client_id
+  cognito_user_pool_endpoint  = module.application_cognito.cognito_user_pool_endpoint
+}
 
 
-# module "serverless_cognito" {
-#   source        = "./modules/cognito"
-# }
+module "application_security_groups" {
+  source       = "./modules/security-group"
+  project_name = var.project_name
+  environment  = var.environment
+  vpc_id       = module.application_network.vpc_id
+}
 
-# module "serverless_api_gateway" {
-#   source        = "./modules/api-gateaway"
-#   lambda_function_name = module.serverless_lambda.lambda_function_name
-#   lambda_function_invoke_arn = module.serverless_lambda.lambda_function_invoke_arn
-#   serverless_cognito_client_id = module.serverless_cognito.serverless_cognito_client_id
-#   serverless_cognito_pool_endpoint = module.serverless_cognito.serverless_cognito_pool_endpoint
-# }
-
-
-# module "serverless_sns" {
-#   source        = "./modules/sns"
-# }
+module "application_secrets_manager" {
+  source       = "./modules/secret-manager"
+  project_name = var.project_name
+  environment  = var.environment
+  admin_email  = var.admin_email
+}

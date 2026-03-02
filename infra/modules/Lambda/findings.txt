@@ -3,9 +3,7 @@ even if the rest of your config doesn’t.
 
 Always use both together:
 
-h
-Copy
-Edit
+
 filename         = data.archive_file.lambda_zip.output_path
 source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 This ensures your Lambda function always gets the latest version of your code, and Terraform can track

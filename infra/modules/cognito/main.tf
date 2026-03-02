@@ -1,7 +1,11 @@
-resource "aws_cognito_user_pool" "serverless_user_pool" {
-  name = "serverless-user-pool"
+############################
+# Cognito User Pool
+############################
 
-  username_attributes = ["email"]
+resource "aws_cognito_user_pool" "application_user_pool" {
+  name = "${var.project_name}-${var.environment}-user-pool"
+
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   password_policy {
@@ -17,73 +21,59 @@ resource "aws_cognito_user_pool" "serverless_user_pool" {
       name     = "verified_email"
       priority = 1
     }
+  }
 
-    recovery_mechanism {
-      name     = "verified_phone_number"
-      priority = 2
-    }
+  # Standard attributes
+  schema {
+    name                = "email"
+    attribute_data_type = "String"
+    required            = true
+    mutable             = true
   }
 
   schema {
-    name     = "email"
+    name                = "given_name"
     attribute_data_type = "String"
-    required = true
-    mutable  = true
-
-    string_attribute_constraints {
-      min_length = 5
-      max_length = 50
-    }
-
+    required            = true
+    mutable             = true
   }
 
   schema {
-    name     = "given_name"
+    name                = "family_name"
     attribute_data_type = "String"
-    required = true
-    mutable  = true
-
-    string_attribute_constraints {
-      min_length = 3
-      max_length = 8
-    }
-
+    required            = true
+    mutable             = true
   }
 
-  schema {
-    name     = "family_name"
-    attribute_data_type = "String"
-    required = true
-    mutable  = true
-
-    string_attribute_constraints {
-      min_length = 3
-      max_length = 8
-    }
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-user-pool"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
   }
-
 }
 
-resource "aws_cognito_user_pool_client" "serverless_app_client" {
-  name         = "nextjs-client"
-  user_pool_id = aws_cognito_user_pool.serverless_user_pool.id
+############################
+# Cognito App Client
+############################
+
+resource "aws_cognito_user_pool_client" "application_app_client" {
+  name         = "${var.project_name}-${var.environment}-app-client"
+  user_pool_id = aws_cognito_user_pool.application_user_pool.id
 
   generate_secret = false
 
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
-    "ALLOW_USER_SRP_AUTH",
-    "ALLOW_CUSTOM_AUTH",
-    "ALLOW_ADMIN_USER_PASSWORD_AUTH"
+    "ALLOW_USER_SRP_AUTH"
   ]
 
   prevent_user_existence_errors = "ENABLED"
 
   write_attributes = [
-  "email",
-  "given_name",
-  "family_name"
+    "email",
+    "given_name",
+    "family_name"
   ]
 
   read_attributes = [
@@ -100,6 +90,4 @@ resource "aws_cognito_user_pool_client" "serverless_app_client" {
     id_token      = "hours"
     refresh_token = "days"
   }
-
 }
-

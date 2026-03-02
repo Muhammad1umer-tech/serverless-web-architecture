@@ -1,83 +1,80 @@
 import json
-import boto3
+import os
 import uuid
+import boto3
 from botocore.exceptions import ClientError
-from boto3.dynamodb.conditions import Attr
 
 dynamodb = boto3.resource("dynamodb")
 s3 = boto3.client("s3")
+sns = boto3.client("sns")
 
-bucket_name = "my-unique-bucket-name-umer-12345-29"
-file_key = "data.json"
-table_name = "serverless_dynamodb_table"
-table = dynamodb.Table(table_name)
+BUCKET_NAME = os.environ.get("BUCKET_NAME", "")
+FILE_KEY = os.environ.get("FILE_KEY", "data.json")
+TABLE_NAME = os.environ.get("TABLE_NAME", "")
+TOPIC_ARN = os.environ.get("TOPIC_ARN", "")
+
+secrets = boto3.client("secretsmanager")
+_secret_cache = None
+
+def get_admin_email():
+    global _secret_cache
+    if _secret_cache is None:
+        arn = os.environ["APP_SECRET_ARN"]
+        resp = secrets.get_secret_value(SecretId=arn)
+        _secret_cache = json.loads(resp["SecretString"])
+    return _secret_cache["admin_email"]
+
+def _resp(code: int, body: dict):
+    return {"statusCode": code, "headers": {"Content-Type": "application/json"}, "body": json.dumps(body)}
 
 def lambda_handler(event, context):
+    if not BUCKET_NAME or not TABLE_NAME:
+        return _resp(500, {"error": "Missing env vars: BUCKET_NAME or TABLE_NAME"})
 
-    # Support both HTTP API (v2.0) and REST API (v1.0)
-    path = event.get('rawPath') or event.get('resource') or ''
-    method = (
-        event.get("requestContext", {}).get("http", {}).get("method")
-        or event.get("httpMethod")
-        or ''
-    )
-    print(f"Received {method} request on path: {path}")
+    table = dynamodb.Table(TABLE_NAME)
 
-    if path.endswith("/add") and method == "POST":
-        try:
-            # Read file from S3
-            response = s3.get_object(Bucket=bucket_name, Key=file_key)
-            content = response["Body"].read().decode("utf-8")
-            items = json.loads(content)
+    try:
+        # Read JSON list from S3
+        response = s3.get_object(Bucket=BUCKET_NAME, Key=FILE_KEY)
+        content = response["Body"].read().decode("utf-8")
+        items = json.loads(content)
 
-            if not isinstance(items, list):
-                raise ValueError("Invalid JSON format. Expected a list of objects.")
+        if not isinstance(items, list):
+            return _resp(400, {"error": "Invalid JSON format in S3 file. Expected a list of objects."})
 
-            # Insert items into DynamoDB
-            for item in items:
-                question = item.get("question")
-                answer = item.get("answer")
+        inserted = 0
+        skipped = 0
 
-                if question and answer:
-                    table.put_item(
-                        Item={
-                            "Id": str(uuid.uuid4()),
-                            "question": question,
-                            "answer": answer
-                        }
-                    )
-                    print(f"Inserted: {question}")
-                else:
-                    print("Skipping item due to missing question/answer:", item)
+        for item in items:
+            question = item.get("question")
+            answer = item.get("answer")
 
-            # ✅ Publish to SNS after insertion
-            sns = boto3.client("sns")
-            topic_arn = "arn:aws:sns:us-east-1:109804294991:data-added-topic-umer-11e3"  # <-- Replace this
-            try:
-                sns_message = f"{len(items)} items added to DynamoDB from {file_key}."
-                sns_response = sns.publish(
-                    TopicArn=topic_arn,
-                    Subject="New data inserted",
-                    Message=sns_message
+            if question and answer:
+                table.put_item(
+                    Item={
+                        "Id": str(uuid.uuid4()),
+                        "question": question,
+                        "answer": answer
+                    }
                 )
-                print("SNS publish response:", sns_response)
+                inserted += 1
+            else:
+                skipped += 1
+
+        # Notify Admin via SNS (optional)
+        if TOPIC_ARN:
+            try:
+                sns.publish(
+                    TopicArn=TOPIC_ARN,
+                    Subject="New data inserted",
+                    Message=f"{inserted} items added to DynamoDB from {FILE_KEY}. Skipped: {skipped}"
+                )
             except Exception as sns_err:
-                print("Error sending SNS message:", sns_err)
+                print("SNS publish failed:", sns_err)
 
-            return {
-                "statusCode": 200,
-                "body": json.dumps({"message": "Data loaded into DynamoDB successfully."})
-            }
+        return _resp(200, {"message": "Data loaded successfully", "inserted": inserted, "skipped": skipped})
 
-        except Exception as e:
-            print("Error:", e)
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"error": "Unhandled error", "details": str(e)})
-            }
-
-    else:
-        return {
-            'statusCode': 404,
-            'body': json.dumps({'message': 'Unsupported path or method'})
-        }
+    except ClientError as e:
+        return _resp(500, {"error": "AWS ClientError", "details": str(e)})
+    except Exception as e:
+        return _resp(500, {"error": "Unhandled error", "details": str(e)})
