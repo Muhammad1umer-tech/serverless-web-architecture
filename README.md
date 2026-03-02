@@ -11,6 +11,7 @@ In this architecture, i am using Amazon Cognito for authentication, API Gateway 
 ---
 
 **AWS Services**:  
+![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)
 ![Cognito](https://img.shields.io/badge/AWS-Cognito-DD344C?style=for-the-badge&logo=amazon-cognito&logoColor=white)
 ![API Gateway](https://img.shields.io/badge/AWS-API_Gateway-FF4F00?style=for-the-badge&logo=amazon-api-gateway&logoColor=white)
 ![Lambda](https://img.shields.io/badge/AWS-Lambda-FF9900?style=for-the-badge&logo=aws-lambda&logoColor=white)
@@ -168,4 +169,5 @@ User
 ```
 
 ---
+
 
