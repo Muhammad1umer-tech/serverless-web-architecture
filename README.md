@@ -4,7 +4,11 @@
 
 This project demonstrates the deployment of a secure, fully serverless, event-driven backend architecture on AWS. The primary objective was to design a highly secure, scalable, and production-ready system using AWS managed services.
 
-The architecture leverages Amazon Cognito for authentication, API Gateway for secure routing, AWS Lambda for serverless compute, DynamoDB and S3 for data storage, SNS for event notifications, Secrets Manager for secure configuration handling, and a custom VPC for private networking. All components are configured following least-privilege IAM principles and private service communication via VPC endpoints.
+In this architecture, i am using Amazon Cognito for authentication, API Gateway for secure routing, AWS Lambda for serverless compute, DynamoDB and S3 for data storage, SNS for event notifications, Secrets Manager for secure configuration handling, and a custom VPC for private networking. All components are configured following least-privilege IAM principles and private service communication via VPC endpoints.
+
+---
+> Note: Secrets Manager is typically used to store sensitive credentials like API keys or database passwords. In this project, it is used purely for demonstration purposes — the only value stored is the admin's email address, which the Lambda function retrieves at runtime to send SNS notifications. In a real-world scenario, this would be stored in an environment variable instead.
+---
 
 **AWS Services**:  
 ![Cognito](https://img.shields.io/badge/AWS-Cognito-DD344C?style=for-the-badge&logo=amazon-cognito&logoColor=white)
@@ -37,7 +41,7 @@ The architecture leverages Amazon Cognito for authentication, API Gateway for se
 - **Compute (Serverless)**:
   - Two Lambda functions deployed inside **Private Subnets** within a custom VPC:
     - **Query DB Lambda** – Handles read operations from DynamoDB and S3.
-    - **Add DB Lambda** – Handles write operations to DynamoDB and S3, and publishes SNS notifications.
+    - **Add DB Lambda** – Handles write operations to DynamoDB and S3, and publishes SNS notifications when data has been added.
   - Lambdas access AWS services privately via VPC Endpoints.
 
 - **Data Storage**:
@@ -46,12 +50,12 @@ The architecture leverages Amazon Cognito for authentication, API Gateway for se
   - Both accessed privately via Gateway VPC Endpoints.
 
 - **Security**:
-  - **IAM Roles & Policies** – Fine-grained permissions for S3, DynamoDB, SNS, and Secrets Manager.
-  - **Secrets Manager** – Stores sensitive configuration securely.
+  - **IAM Roles & Policies** – Fine-grained permissions for S3, DynamoDB, SNS, and Secrets Manager as boto3 will use these policies in terraform to access S3, DynamoDB and S3 bucket.
+  - **Secrets Manager** – Stores sensitive configuration securely. I am storing only admin's mail here as there was no main need of using secret manager here
   - All Lambda-to-service communication remains inside the AWS private network.
 
 - **Notifications**:
-  - **SNS Topic** used to send email notifications to admins and users.
+  - **SNS Topic** used to send email notifications to admins.
   - Triggered by Add DB Lambda after successful write operations.
 
 ---
@@ -92,14 +96,14 @@ Two Lambda functions implement the core business logic:
 
 - **Query DB Lambda**:
   - Triggered by API Gateway for read requests.
-  - Reads data from DynamoDB and fetches objects from S3.
+  - Reads data from DynamoDB
   - Communicates privately via Gateway VPC Endpoints.
 
 - **Add DB Lambda**:
   - Triggered by API Gateway for write requests.
-  - Inserts records into DynamoDB and uploads files to S3.
-  - Publishes notifications to SNS after successful writes.
-  - Retrieves secure configuration from Secrets Manager.
+  - Initially, it is storing data retrieved from S3 into dynamoDB and send message to admin
+  - When user insert data to dynamo, it will also send mail to admin.
+  - Retrieves admin mail from Secrets Manager.
 
 Both functions run inside private subnets, use IAM execution roles, follow least-privilege access, and contain no hardcoded credentials.
 
@@ -131,16 +135,23 @@ A dedicated IAM execution role is attached to Lambda functions with the followin
 
 ### 7. Secrets Manager
 
-Sensitive configuration (API keys, credentials) is stored in **AWS Secrets Manager**. Lambda retrieves secrets at runtime via an Interface VPC Endpoint — secrets are never hardcoded or exposed in environment variables.
+Usually Sensitive configuration (API keys, credentials) is stored in **AWS Secrets Manager**. But i only stored admin's mail in secret manager. Lambda retrieves mail at runtime via an Interface VPC Endpoint — I haven't hardcoded or exposed mail in environment variables.
 
 ![Alt Text](./images/secrets-manager.png)
 
 ### 8. SNS Notifications
 
-An **SNS Topic** is configured with email subscriptions for admins and users. The Add DB Lambda publishes a message to SNS after successful write operations, which then fans out email notifications to all subscribers.
+An **SNS Topic** is configured with email subscriptions for admins and users. The Add DB Lambda publishes a message to SNS after successful write operations.
 
 ![Alt Text](./images/sns.png)
 
+---
+>Cost Optimization Decisions
+Why Lambda over EC2?
+Lambda follows a pay-per-invocation model — you are billed only for the compute time your function actually runs (per 100ms). For a project with intermittent or unpredictable traffic, this is significantly cheaper than running EC2 instances 24/7 regardless of load. There are no idle costs, no need to over-provision, and AWS Free Tier includes 1 million Lambda invocations per month.
+Why VPC Endpoints over NAT Gateway?
+
+>A NAT Gateway costs ~$0.045/hour (~$32/month) plus data processing charges. By using Gateway VPC Endpoints (for S3 and DynamoDB) and an Interface VPC Endpoint (for Secrets Manager), Lambda functions communicate with AWS services privately without a NAT Gateway. Gateway Endpoints are completely free. Interface Endpoints have a small hourly cost but are still cheaper than NAT Gateway at low-to-moderate data volumes — and more secure since traffic never leaves the AWS network.
 ---
 
 ## Request Flow Summary
@@ -157,3 +168,4 @@ User
 ```
 
 ---
+
